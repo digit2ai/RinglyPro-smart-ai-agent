@@ -12,6 +12,10 @@ class Config:
     TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "")
     TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE_NUMBER", "")
     
+    # Default Contact Information (for "me" commands)
+    DEFAULT_PHONE_NUMBER = os.getenv("DEFAULT_PHONE_NUMBER", "")
+    DEFAULT_EMAIL = os.getenv("DEFAULT_EMAIL", "")
+    
     # Email Configuration (Network Solutions defaults)
     SMTP_SERVER = os.getenv("SMTP_SERVER", "mail.networksolutions.com")
     SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
