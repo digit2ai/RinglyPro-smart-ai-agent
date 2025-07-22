@@ -57,12 +57,7 @@ self.addEventListener('fetch', event => {
     return Response(sw_content, mimetype='application/javascript')
 
 HTML_TEMPLATE = """
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <style>
-.container {
-  min-height: 300px;
+min-height: 300px;
       flex: 1;
       box-shadow: 0 8px 32px rgba(0,0,0,0.1);
       backdrop-filter: blur(10px);
@@ -465,13 +460,15 @@ Use the microphone button below or type your command.</div>
   </script>
 </body>
 </html>
-"""
+\"\"\"
 
 @web_bp.route("/")
 def index():
-    """Main web interface"""
+    \"\"\"Main web interface\"\"\"
     return render_template_string(HTML_TEMPLATE)
 """
+
+
 @web_bp.route("/")
 def index():
     """Main web interface"""
