@@ -149,8 +149,6 @@ class MessageParser:
             r'message (.+?) saying (.+)',
             r'send (.+?) the message (.+)',
             r'tell (.+?) that (.+)',
-            # Only match "text X saying Y" pattern for immediate messages
-            r'text ([^0-9]*[a-zA-Z@+][^0-9]*) saying (.+)',
         ]
         
         for pattern in patterns:
