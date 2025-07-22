@@ -468,7 +468,6 @@ def index():
     return render_template_string(HTML_TEMPLATE)
 """
 
-
 @web_bp.route("/")
 def index():
     """Main web interface"""
