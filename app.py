@@ -12,14 +12,8 @@ from services.email_service import EmailService
 from services.reminder_service import ReminderService
 from handlers.action_handlers import ActionHandlers
 from routes.web_routes import web_bp
-# from routes.web_routes import web_bp
 from routes.pwa_routes import pwa_bp
 from routes.api_routes import api_bp, init_api_routes
-
-# ...
-
-# Comment out this line:
-# app.register_blueprint(web_bp)
 
 def create_app():
     """Application factory"""
