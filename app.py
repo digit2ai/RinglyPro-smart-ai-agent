@@ -124,9 +124,9 @@ def print_startup_info(reminder_service, twilio_service, email_service, claude_s
     print("  - GET  /list_reminders - List all scheduled reminders")
     print("  - POST /cancel_reminder - Cancel a reminder")
 
+# Create the app instance for Gunicorn
+app, reminder_service, twilio_service, email_service, claude_service = create_app()
+
 if __name__ == '__main__':
-    app, reminder_service, twilio_service, email_service, claude_service = create_app()
-    
     print_startup_info(reminder_service, twilio_service, email_service, claude_service)
-    
     app.run(host="0.0.0.0", port=Config.PORT, debug=Config.DEBUG)
