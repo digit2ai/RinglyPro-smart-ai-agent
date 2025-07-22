@@ -7,15 +7,57 @@ class MessageParser:
     """Parse voice commands into structured actions"""
     
     @staticmethod
+    def _has_timing_keywords(text: str) -> bool:
+        """Check if text contains timing keywords that indicate a reminder"""
+        timing_keywords = [
+            'in ', 'at ', 'tomorrow', 'next ', 'on ', 'this ', 'tonight',
+            'later', 'soon', 'minute', 'hour', 'day', 'week', 'month',
+            'morning', 'afternoon', 'evening', 'night', 'am', 'pm',
+            'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'
+        ]
+        text_lower = text.lower()
+        return any(keyword in text_lower for keyword in timing_keywords)
+    
+    @staticmethod
     def extract_reminder_command(text: str) -> Optional[Dict[str, Any]]:
         """Extract reminder command from voice input"""
         patterns = [
+            # "Remind me" patterns
             r'remind me to (.+?) in (.+)',
-            r'set (?:a )?reminder to (.+?) at (.+)',
+            r'remind me to (.+?) at (.+)',
+            r'remind me to (.+?) tomorrow',
+            r'remind me to (.+?) next (.+)',
+            r'remind me to (.+?) on (.+)',
             r'remind me in (.+?) to (.+)',
+            r'remind me at (.+?) to (.+)',
+            r'remind me tomorrow to (.+)',
+            r'remind me next (.+?) to (.+)',
+            
+            # "Text me" / "SMS me" patterns
+            r'text me in (.+?) to (.+)',
+            r'text me in (.+?) saying (.+)',
+            r'text me at (.+?) to (.+)',
+            r'text me at (.+?) saying (.+)',
+            r'text me tomorrow to (.+)',
+            r'text me tomorrow saying (.+)',
+            r'text me next (.+?) to (.+)',
+            r'text me next (.+?) saying (.+)',
+            
+            # "Text [number] in/at" patterns  
+            r'text (.+?) in (.+?) saying (.+)',
+            r'text (.+?) in (.+?) to (.+)',
+            r'text (.+?) at (.+?) saying (.+)',
+            r'text (.+?) at (.+?) to (.+)',
+            r'text (.+?) tomorrow saying (.+)',
+            r'text (.+?) tomorrow to (.+)',
+            r'text (.+?) next (.+?) saying (.+)',
+            r'text (.+?) next (.+?) to (.+)',
+            
+            # General reminder patterns
+            r'set (?:a )?reminder to (.+?) at (.+)',
+            r'set (?:a )?reminder to (.+?) in (.+)',
             r'schedule (?:a )?reminder to (.+?) (.+)',
             r'send me (?:a )?reminder to (.+?) in (.+)',
-            r'text me in (.+?) to (.+)',
             r'sms reminder in (.+?) saying (.+)',
         ]
         
@@ -26,19 +68,35 @@ class MessageParser:
             if match:
                 groups = match.groups()
                 
-                # Determine message and time based on pattern
-                if "in" in pattern and pattern.index("in") < pattern.index("to"):
-                    time_str = groups[0].strip()
-                    message = groups[1].strip()
-                elif "at" in pattern:
-                    message = groups[0].strip()
+                # Handle different pattern structures
+                if len(groups) == 3:  # 3-group patterns like "text [recipient] in [time] saying [message]"
+                    recipient = groups[0].strip()
                     time_str = groups[1].strip()
-                elif "saying" in pattern:
-                    time_str = groups[0].strip()
-                    message = groups[1].strip()
+                    message = groups[2].strip()
+                elif len(groups) == 2:
+                    # Determine order based on pattern keywords
+                    if "in" in pattern and pattern.index("in") < pattern.index("to"):
+                        time_str = groups[0].strip()
+                        message = groups[1].strip()
+                        recipient = "me"  # Default for "remind me in X to Y" patterns
+                    elif "at" in pattern and "to" in pattern:
+                        if pattern.index("at") < pattern.index("to"):
+                            time_str = groups[0].strip()
+                            message = groups[1].strip()
+                        else:
+                            message = groups[0].strip()
+                            time_str = groups[1].strip()
+                        recipient = "me"
+                    elif "saying" in pattern:
+                        time_str = groups[0].strip()
+                        message = groups[1].strip()
+                        recipient = "me"
+                    else:
+                        message = groups[0].strip()
+                        time_str = groups[1].strip()
+                        recipient = "me"
                 else:
-                    message = groups[0].strip()
-                    time_str = groups[1].strip()
+                    continue  # Skip patterns we can't parse
                 
                 reminder_time = parse_natural_datetime(time_str)
                 
@@ -47,6 +105,7 @@ class MessageParser:
                     
                     return {
                         "action": "schedule_sms_reminder",
+                        "recipient": recipient,
                         "message": message,
                         "reminder_time": reminder_time.isoformat(),
                         "time_str": time_str,
@@ -57,14 +116,18 @@ class MessageParser:
     
     @staticmethod
     def extract_sms_command(text: str) -> Optional[Dict[str, Any]]:
-        """Extract SMS command from voice input"""
+        """Extract SMS command from voice input (IMMEDIATE only, no timing)"""
+        # Skip if this looks like a reminder command
+        if MessageParser._has_timing_keywords(text):
+            return None
+            
         patterns = [
             r'send (?:a )?(?:text|message|sms) to (.+?) saying (.+)',
             r'text (.+?) saying (.+)',
             r'message (.+?) saying (.+)',
             r'send (.+?) the message (.+)',
             r'tell (.+?) that (.+)',
-            r'text (.+?) (.+)',
+            r'text (.+?) (.+)',  # Keep this last as it's most general
         ]
         
         text_lower = text.lower().strip()
@@ -74,6 +137,11 @@ class MessageParser:
             if match:
                 recipient = match.group(1).strip()
                 message = match.group(2).strip()
+                
+                # Double-check: if recipient contains timing words, skip this
+                if MessageParser._has_timing_keywords(recipient):
+                    continue
+                    
                 message = clean_voice_message(message)
                 
                 return {
@@ -88,6 +156,10 @@ class MessageParser:
     @staticmethod
     def extract_sms_command_multi(text: str) -> Optional[Dict[str, Any]]:
         """Extract multi-recipient SMS command"""
+        # Skip if this looks like a reminder command
+        if MessageParser._has_timing_keywords(text):
+            return None
+            
         multi_patterns = [
             r'send (?:a )?(?:text|message|sms) to (.+?) saying (.+)',
             r'text (.+?) saying (.+)',
@@ -102,6 +174,11 @@ class MessageParser:
             if match:
                 recipients_text = match.group(1).strip()
                 message = match.group(2).strip()
+                
+                # Double-check: if recipients contains timing words, skip this
+                if MessageParser._has_timing_keywords(recipients_text):
+                    continue
+                    
                 recipients = parse_recipients(recipients_text)
                 message = clean_voice_message(message)
                 
