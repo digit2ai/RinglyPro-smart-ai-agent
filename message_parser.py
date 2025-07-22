@@ -56,7 +56,10 @@ class MessageParser:
             # General reminder patterns
             r'set (?:a )?reminder to (.+?) at (.+)',
             r'set (?:a )?reminder to (.+?) in (.+)',
-            r'schedule (?:a )?reminder to (.+?) (.+)',
+            r'set (?:a )?reminder to (.+?) tomorrow',
+            r'set (?:a )?reminder to (.+?) next (.+)',
+            r'schedule (?:a )?reminder to (.+?) at (.+)',
+            r'schedule (?:a )?reminder to (.+?) in (.+)',
             r'send me (?:a )?reminder to (.+?) in (.+)',
             r'sms reminder in (.+?) saying (.+)',
         ]
@@ -90,6 +93,10 @@ class MessageParser:
                     elif "saying" in pattern:
                         time_str = groups[0].strip()
                         message = groups[1].strip()
+                        recipient = "me"
+                    elif "set" in pattern.lower() or "schedule" in pattern.lower():
+                        message = groups[0].strip()
+                        time_str = groups[1].strip()
                         recipient = "me"
                     else:
                         message = groups[0].strip()
