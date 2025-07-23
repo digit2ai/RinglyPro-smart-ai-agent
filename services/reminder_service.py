@@ -4,7 +4,6 @@ import pytz
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.executors.pool import ThreadPoolExecutor
-from apscheduler import events
 from config import Config
 
 # Global service references for job callbacks
@@ -14,10 +13,6 @@ _email_service = None
 def _send_sms_reminder_job(phone_number: str, message: str, reminder_id: str):
     """Standalone function for SMS reminder job (avoids serialization issues)"""
     try:
-        print(f"🚨 JOB EXECUTING: reminder_id={reminder_id}, phone={phone_number}")
-        print(f"🚨 TWILIO SERVICE: {_twilio_service}")
-        print(f"🚨 MESSAGE: {message}")
-        
         print(f"[REMINDER] Sending SMS reminder {reminder_id} to {phone_number}")
         result = _twilio_service.send_sms(phone_number, message)
         
@@ -58,30 +53,25 @@ class ReminderService:
     
     def _setup_scheduler(self):
         """Initialize the background scheduler"""
-        # Use memory storage instead of SQLite for Render compatibility
         jobstores = {
-            'default': 'memory'  # Changed from SQLAlchemyJobStore to memory
+            'default': SQLAlchemyJobStore(url=Config.SCHEDULER_JOBSTORE_URL)
         }
         executors = {
             'default': ThreadPoolExecutor(20),
         }
         job_defaults = {
-            'coalesce': True,  # Combine multiple pending executions
-            'max_instances': 1  # Only one instance per job
+            'coalesce': False,
+            'max_instances': 3
         }
         
         self.scheduler = BackgroundScheduler(
             jobstores=jobstores, 
             executors=executors, 
             job_defaults=job_defaults, 
-            timezone=pytz.UTC  # Use UTC timezone to match server
+            timezone=Config.SCHEDULER_TIMEZONE
         )
-        
-        # Add error handling and job recovery
-        self.scheduler.add_listener(self._job_listener, events.EVENT_JOB_ERROR | events.EVENT_JOB_EXECUTED)
-        
         self.scheduler.start()
-        print("✅ Reminder scheduler started with memory storage")
+        print("✅ Reminder scheduler started")
     
     def schedule_sms_reminder(self, phone_number: str, message: str, reminder_time: datetime) -> Dict[str, Any]:
         """Schedule an SMS reminder"""
@@ -177,13 +167,6 @@ class ReminderService:
             return {"success": True, "message": f"Reminder {reminder_id} cancelled successfully"}
         except Exception as e:
             return {"success": False, "error": f"Failed to cancel reminder: {str(e)}"}
-    
-    def _job_listener(self, event):
-        """Listen for job events to debug execution"""
-        if event.exception:
-            print(f"🚨 JOB ERROR: {event.job_id} - {event.exception}")
-        else:
-            print(f"✅ JOB EXECUTED: {event.job_id}")
     
     def shutdown(self):
         """Shutdown the scheduler"""
