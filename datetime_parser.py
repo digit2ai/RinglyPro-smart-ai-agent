@@ -15,109 +15,72 @@ def parse_natural_datetime(text: str) -> Optional[datetime]:
     print(f"[DEBUG DATETIME] Current time: {now}")
     print(f"[DEBUG DATETIME] Parsing: '{text}'")
     
-    # Helper function to ensure timezone consistency
-    def make_timezone_aware(dt):
-        """Ensure datetime has timezone info"""
-        if dt.tzinfo is None:
-            return Config.SCHEDULER_TIMEZONE.localize(dt)
-        return dt
+    # Simple relative time patterns with direct calculation
+    # Handle "in X minutes" specifically
+    if re.search(r'in (\d+) minutes?', text):
+        match = re.search(r'in (\d+) minutes?', text)
+        minutes = int(match.group(1))
+        result = now + timedelta(minutes=minutes)
+        print(f"[DEBUG DATETIME] 'in {minutes} minutes' -> {result}")
+        return result
     
-    # Patterns for relative times - fix the lambda functions
-    relative_patterns = [
-        (r'in (\d+) minutes?', lambda m, current_time=now: current_time + timedelta(minutes=int(m.group(1)))),
-        (r'in (\d+) hours?', lambda m, current_time=now: current_time + timedelta(hours=int(m.group(1)))),
-        (r'in (\d+) days?', lambda m, current_time=now: current_time + timedelta(days=int(m.group(1)))),
-        (r'in (\d+) weeks?', lambda m, current_time=now: current_time + timedelta(weeks=int(m.group(1)))),
+    # Handle "in X hours"
+    if re.search(r'in (\d+) hours?', text):
+        match = re.search(r'in (\d+) hours?', text)
+        hours = int(match.group(1))
+        result = now + timedelta(hours=hours)
+        print(f"[DEBUG DATETIME] 'in {hours} hours' -> {result}")
+        return result
+    
+    # Handle "in X days"
+    if re.search(r'in (\d+) days?', text):
+        match = re.search(r'in (\d+) days?', text)
+        days = int(match.group(1))
+        result = now + timedelta(days=days)
+        print(f"[DEBUG DATETIME] 'in {days} days' -> {result}")
+        return result
+    
+    # Handle common shortcuts
+    if 'in a minute' in text or 'in 1 minute' in text:
+        result = now + timedelta(minutes=1)
+        print(f"[DEBUG DATETIME] 'in a minute' -> {result}")
+        return result
         
-        # Handle fractional times
-        (r'in (\d+\.?\d*) minutes?', lambda m, current_time=now: current_time + timedelta(minutes=float(m.group(1)))),
-        (r'in (\d+\.?\d*) hours?', lambda m, current_time=now: current_time + timedelta(hours=float(m.group(1)))),
-        
-        # "X from now" patterns
-        (r'(\d+) minutes? from now', lambda m, current_time=now: current_time + timedelta(minutes=int(m.group(1)))),
-        (r'(\d+) hours? from now', lambda m, current_time=now: current_time + timedelta(hours=int(m.group(1)))),
-        (r'(\d+) days? from now', lambda m, current_time=now: current_time + timedelta(days=int(m.group(1)))),
-        
-        # Common shortcuts
-        (r'in (?:a |an )?hour', lambda m, current_time=now: current_time + timedelta(hours=1)),
-        (r'in (?:a )?minute', lambda m, current_time=now: current_time + timedelta(minutes=1)),
-        (r'in half (?:an )?hour', lambda m, current_time=now: current_time + timedelta(minutes=30)),
-        (r'in (?:a )?second', lambda m, current_time=now: current_time + timedelta(seconds=1)),
-        
-        # Specific time patterns
+    if 'in an hour' in text or 'in 1 hour' in text:
+        result = now + timedelta(hours=1)
+        print(f"[DEBUG DATETIME] 'in an hour' -> {result}")
+        return result
+    
+    if 'in half an hour' in text:
+        result = now + timedelta(minutes=30)
+        print(f"[DEBUG DATETIME] 'in half an hour' -> {result}")
+        return result
+    
+    # Handle specific times like "at 3pm", "tomorrow at 9am"
+    time_patterns = [
         (r'tomorrow at (\d{1,2}):?(\d{0,2})\s*(am|pm)?', lambda m: 
-         make_timezone_aware((now + timedelta(days=1)).replace(
-             hour=_parse_hour(m.group(1), m.group(3)),
-             minute=int(m.group(2)) if m.group(2) else 0,
-             second=0, microsecond=0, tzinfo=None
-         ))),
+         _calculate_tomorrow_time(now, m.group(1), m.group(2), m.group(3))),
         
         (r'today at (\d{1,2}):?(\d{0,2})\s*(am|pm)?', lambda m: 
-         make_timezone_aware(now.replace(
-             hour=_parse_hour(m.group(1), m.group(3)),
-             minute=int(m.group(2)) if m.group(2) else 0,
-             second=0, microsecond=0, tzinfo=None
-         ))),
+         _calculate_today_time(now, m.group(1), m.group(2), m.group(3))),
          
         (r'at (\d{1,2}):?(\d{0,2})\s*(am|pm)?', lambda m: 
-         make_timezone_aware(now.replace(
-             hour=_parse_hour(m.group(1), m.group(3)),
-             minute=int(m.group(2)) if m.group(2) else 0,
-             second=0, microsecond=0, tzinfo=None
-         ))),
-         
-        # 24-hour format
-        (r'at (\d{1,2}):(\d{2})', lambda m: 
-         make_timezone_aware(now.replace(
-             hour=int(m.group(1)),
-             minute=int(m.group(2)),
-             second=0, microsecond=0, tzinfo=None
-         ))),
-         
-        # Just hour (assumes PM for business hours, AM for early hours)
-        (r'at (\d{1,2})pm', lambda m: 
-         make_timezone_aware(now.replace(
-             hour=int(m.group(1)) if int(m.group(1)) == 12 else int(m.group(1)) + 12,
-             minute=0, second=0, microsecond=0, tzinfo=None
-         ))),
-         
-        (r'at (\d{1,2})am', lambda m: 
-         make_timezone_aware(now.replace(
-             hour=int(m.group(1)) % 12,
-             minute=0, second=0, microsecond=0, tzinfo=None
-         ))),
+         _calculate_time_today(now, m.group(1), m.group(2), m.group(3))),
     ]
     
-    # Try relative patterns first
-    for pattern, calculator in relative_patterns:
+    # Try specific time patterns
+    for pattern, calculator in time_patterns:
         match = re.search(pattern, text)
         if match:
             try:
                 result = calculator(match)
-                print(f"[DEBUG DATETIME] Pattern '{pattern}' matched")
-                print(f"[DEBUG DATETIME] Calculated result: {result}")
-                
-                # Ensure result is timezone-aware and in the future
-                if result.tzinfo is None:
-                    result = Config.SCHEDULER_TIMEZONE.localize(result)
-                
-                # Validate that result is in the future
-                if result <= now:
-                    print(f"[DEBUG DATETIME] Result {result} is not in future (now: {now})")
-                    # For "today" patterns, try tomorrow instead
-                    if "today" in text:
-                        result += timedelta(days=1)
-                        print(f"[DEBUG DATETIME] Adjusted to tomorrow: {result}")
-                    else:
-                        print(f"[DEBUG DATETIME] Warning: Scheduled time is in the past!")
-                
-                print(f"[DEBUG DATETIME] Final result: {result}")
+                print(f"[DEBUG DATETIME] Time pattern matched -> {result}")
                 return result
             except Exception as e:
-                print(f"[DEBUG DATETIME] Error calculating relative time: {e}")
+                print(f"[DEBUG DATETIME] Error with time pattern: {e}")
                 continue
     
-    # Try parsing with dateutil
+    # Try parsing with dateutil as fallback
     try:
         parsed = date_parser.parse(text, fuzzy=True)
         if parsed.tzinfo is None:
@@ -127,11 +90,51 @@ def parse_natural_datetime(text: str) -> Optional[datetime]:
         if parsed <= now:
             parsed += timedelta(days=1)
             
+        print(f"[DEBUG DATETIME] Dateutil parsed -> {parsed}")
         return parsed
     except Exception as e:
-        print(f"Error parsing datetime with dateutil: {e}")
+        print(f"[DEBUG DATETIME] Dateutil parsing failed: {e}")
         
+    print(f"[DEBUG DATETIME] No patterns matched for: '{text}'")
     return None
+
+def _calculate_tomorrow_time(now: datetime, hour_str: str, minute_str: str, ampm: Optional[str]) -> datetime:
+    """Calculate time for tomorrow"""
+    hour = int(hour_str)
+    minute = int(minute_str) if minute_str else 0
+    
+    if ampm:
+        if ampm.lower() == 'pm' and hour != 12:
+            hour += 12
+        elif ampm.lower() == 'am' and hour == 12:
+            hour = 0
+    
+    tomorrow = now + timedelta(days=1)
+    result = tomorrow.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    return result
+
+def _calculate_today_time(now: datetime, hour_str: str, minute_str: str, ampm: Optional[str]) -> datetime:
+    """Calculate time for today"""
+    hour = int(hour_str)
+    minute = int(minute_str) if minute_str else 0
+    
+    if ampm:
+        if ampm.lower() == 'pm' and hour != 12:
+            hour += 12
+        elif ampm.lower() == 'am' and hour == 12:
+            hour = 0
+    
+    result = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    
+    # If time has passed today, move to tomorrow
+    if result <= now:
+        result += timedelta(days=1)
+    
+    return result
+
+def _calculate_time_today(now: datetime, hour_str: str, minute_str: str, ampm: Optional[str]) -> datetime:
+    """Calculate time for today (or tomorrow if past)"""
+    return _calculate_today_time(now, hour_str, minute_str, ampm)
 
 def _parse_hour(hour_str: str, ampm: Optional[str]) -> int:
     """Parse hour with AM/PM handling"""
