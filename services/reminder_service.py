@@ -4,6 +4,7 @@ import pytz
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.executors.pool import ThreadPoolExecutor
+from apscheduler import events
 from config import Config
 
 # Global service references for job callbacks
@@ -64,18 +65,22 @@ class ReminderService:
             'default': ThreadPoolExecutor(20),
         }
         job_defaults = {
-            'coalesce': False,
-            'max_instances': 3
+            'coalesce': True,  # Changed to True - combine multiple pending executions
+            'max_instances': 1  # Changed to 1 - only one instance per job
         }
         
         self.scheduler = BackgroundScheduler(
             jobstores=jobstores, 
             executors=executors, 
             job_defaults=job_defaults, 
-            timezone=Config.SCHEDULER_TIMEZONE
+            timezone=pytz.UTC  # Use UTC timezone to match server
         )
+        
+        # Add error handling and job recovery
+        self.scheduler.add_listener(self._job_listener, events.EVENT_JOB_ERROR | events.EVENT_JOB_EXECUTED)
+        
         self.scheduler.start()
-        print("✅ Reminder scheduler started")
+        print("✅ Reminder scheduler started with persistent storage")
     
     def schedule_sms_reminder(self, phone_number: str, message: str, reminder_time: datetime) -> Dict[str, Any]:
         """Schedule an SMS reminder"""
@@ -171,6 +176,13 @@ class ReminderService:
             return {"success": True, "message": f"Reminder {reminder_id} cancelled successfully"}
         except Exception as e:
             return {"success": False, "error": f"Failed to cancel reminder: {str(e)}"}
+    
+    def _job_listener(self, event):
+        """Listen for job events to debug execution"""
+        if event.exception:
+            print(f"🚨 JOB ERROR: {event.job_id} - {event.exception}")
+        else:
+            print(f"✅ JOB EXECUTED: {event.job_id}")
     
     def shutdown(self):
         """Shutdown the scheduler"""
