@@ -22,27 +22,27 @@ def parse_natural_datetime(text: str) -> Optional[datetime]:
             return Config.SCHEDULER_TIMEZONE.localize(dt)
         return dt
     
-    # Patterns for relative times
+    # Patterns for relative times - fix the lambda functions
     relative_patterns = [
-        (r'in (\d+) minutes?', lambda m: now + timedelta(minutes=int(m.group(1)))),
-        (r'in (\d+) hours?', lambda m: now + timedelta(hours=int(m.group(1)))),
-        (r'in (\d+) days?', lambda m: now + timedelta(days=int(m.group(1)))),
-        (r'in (\d+) weeks?', lambda m: now + timedelta(weeks=int(m.group(1)))),
+        (r'in (\d+) minutes?', lambda m, current_time=now: current_time + timedelta(minutes=int(m.group(1)))),
+        (r'in (\d+) hours?', lambda m, current_time=now: current_time + timedelta(hours=int(m.group(1)))),
+        (r'in (\d+) days?', lambda m, current_time=now: current_time + timedelta(days=int(m.group(1)))),
+        (r'in (\d+) weeks?', lambda m, current_time=now: current_time + timedelta(weeks=int(m.group(1)))),
         
         # Handle fractional times
-        (r'in (\d+\.?\d*) minutes?', lambda m: now + timedelta(minutes=float(m.group(1)))),
-        (r'in (\d+\.?\d*) hours?', lambda m: now + timedelta(hours=float(m.group(1)))),
+        (r'in (\d+\.?\d*) minutes?', lambda m, current_time=now: current_time + timedelta(minutes=float(m.group(1)))),
+        (r'in (\d+\.?\d*) hours?', lambda m, current_time=now: current_time + timedelta(hours=float(m.group(1)))),
         
         # "X from now" patterns
-        (r'(\d+) minutes? from now', lambda m: now + timedelta(minutes=int(m.group(1)))),
-        (r'(\d+) hours? from now', lambda m: now + timedelta(hours=int(m.group(1)))),
-        (r'(\d+) days? from now', lambda m: now + timedelta(days=int(m.group(1)))),
+        (r'(\d+) minutes? from now', lambda m, current_time=now: current_time + timedelta(minutes=int(m.group(1)))),
+        (r'(\d+) hours? from now', lambda m, current_time=now: current_time + timedelta(hours=int(m.group(1)))),
+        (r'(\d+) days? from now', lambda m, current_time=now: current_time + timedelta(days=int(m.group(1)))),
         
         # Common shortcuts
-        (r'in (?:a |an )?hour', lambda m: now + timedelta(hours=1)),
-        (r'in (?:a )?minute', lambda m: now + timedelta(minutes=1)),
-        (r'in half (?:an )?hour', lambda m: now + timedelta(minutes=30)),
-        (r'in (?:a )?second', lambda m: now + timedelta(seconds=1)),
+        (r'in (?:a |an )?hour', lambda m, current_time=now: current_time + timedelta(hours=1)),
+        (r'in (?:a )?minute', lambda m, current_time=now: current_time + timedelta(minutes=1)),
+        (r'in half (?:an )?hour', lambda m, current_time=now: current_time + timedelta(minutes=30)),
+        (r'in (?:a )?second', lambda m, current_time=now: current_time + timedelta(seconds=1)),
         
         # Specific time patterns
         (r'tomorrow at (\d{1,2}):?(\d{0,2})\s*(am|pm)?', lambda m: 
