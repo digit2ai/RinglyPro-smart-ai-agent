@@ -13,6 +13,10 @@ _email_service = None
 def _send_sms_reminder_job(phone_number: str, message: str, reminder_id: str):
     """Standalone function for SMS reminder job (avoids serialization issues)"""
     try:
+        print(f"🚨 JOB EXECUTING: reminder_id={reminder_id}, phone={phone_number}")
+        print(f"🚨 TWILIO SERVICE: {_twilio_service}")
+        print(f"🚨 MESSAGE: {message}")
+        
         print(f"[REMINDER] Sending SMS reminder {reminder_id} to {phone_number}")
         result = _twilio_service.send_sms(phone_number, message)
         
