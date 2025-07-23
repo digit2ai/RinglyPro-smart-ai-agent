@@ -9,14 +9,21 @@ def parse_natural_datetime(text: str) -> Optional[datetime]:
     """Parse natural language datetime expressions"""
     
     print("🔥🔥🔥 DATETIME PARSER CALLED WITH:", text)
-    print("🔥🔥🔥 FILE: utils/datetime_parser.py")
+    print("🔥🔥🔥 FILE: ROOT datetime_parser.py")
     
-    # Get current time in the configured timezone
-    now = datetime.now(Config.SCHEDULER_TIMEZONE)
+    # Get current time in UTC (server timezone) instead of configured timezone
+    now_utc = datetime.now(pytz.UTC)
+    # Also get configured timezone for comparison
+    now_configured = datetime.now(Config.SCHEDULER_TIMEZONE)
+    
     text = text.lower().strip()
     
-    print(f"[DEBUG DATETIME] Current time: {now}")
+    print(f"[DEBUG DATETIME] Server time (UTC): {now_utc}")
+    print(f"[DEBUG DATETIME] Configured time (Eastern): {now_configured}")
     print(f"[DEBUG DATETIME] Parsing: '{text}'")
+    
+    # Use UTC time for calculations to match server time
+    now = now_utc
     
     # Simple relative time patterns with direct calculation
     # Handle "in X minutes" specifically
