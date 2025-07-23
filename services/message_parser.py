@@ -65,11 +65,13 @@ class MessageParser:
         ]
         
         text_lower = text.lower().strip()
+        print(f"[DEBUG] Trying to extract reminder from: '{text_lower}'")
         
-        for pattern in patterns:
+        for i, pattern in enumerate(patterns):
             match = re.search(pattern, text_lower, re.IGNORECASE)
             if match:
                 groups = match.groups()
+                print(f"[DEBUG] Pattern {i} matched: '{pattern}' -> groups: {groups}")
                 
                 # Handle different pattern structures
                 if len(groups) == 3:  # 3-group patterns like "text [recipient] in [time] saying [message]"
@@ -78,25 +80,31 @@ class MessageParser:
                     message = groups[2].strip()
                 elif len(groups) == 2:
                     # Determine order based on pattern keywords
-                    if "in" in pattern and pattern.index("in") < pattern.index("to"):
+                    if "remind me to (.+?) in (.+)" in pattern:
+                        # Pattern: "remind me to [message] in [time]"
+                        message = groups[0].strip()
+                        time_str = groups[1].strip()
+                        recipient = "me"
+                        print(f"[DEBUG] Using 'remind me to X in Y' logic: message='{message}', time='{time_str}'")
+                    elif "remind me in (.+?) to (.+)" in pattern:
+                        # Pattern: "remind me in [time] to [message]"
                         time_str = groups[0].strip()
                         message = groups[1].strip()
-                        recipient = "me"  # Default for "remind me in X to Y" patterns
-                    elif "at" in pattern and "to" in pattern:
-                        if pattern.index("at") < pattern.index("to"):
-                            time_str = groups[0].strip()
-                            message = groups[1].strip()
-                        else:
-                            message = groups[0].strip()
-                            time_str = groups[1].strip()
+                        recipient = "me"
+                        print(f"[DEBUG] Using 'remind me in X to Y' logic: time='{time_str}', message='{message}'")
+                    elif "to (.+?) at (.+)" in pattern:
+                        # Pattern: "set reminder to [message] at [time]"
+                        message = groups[0].strip()
+                        time_str = groups[1].strip()
+                        recipient = "me"
+                    elif "to (.+?) in (.+)" in pattern:
+                        # Pattern: "set reminder to [message] in [time]"
+                        message = groups[0].strip()
+                        time_str = groups[1].strip()
                         recipient = "me"
                     elif "saying" in pattern:
                         time_str = groups[0].strip()
                         message = groups[1].strip()
-                        recipient = "me"
-                    elif "set" in pattern.lower() or "schedule" in pattern.lower():
-                        message = groups[0].strip()
-                        time_str = groups[1].strip()
                         recipient = "me"
                     else:
                         message = groups[0].strip()
@@ -104,6 +112,8 @@ class MessageParser:
                         recipient = "me"
                 else:
                     continue  # Skip patterns we can't parse
+                
+                print(f"[DEBUG] Final parsing: recipient='{recipient}', message='{message}', time_str='{time_str}'")
                 
                 reminder_time = parse_natural_datetime(time_str)
                 
@@ -118,7 +128,10 @@ class MessageParser:
                         "time_str": time_str,
                         "original_text": text
                     }
+                else:
+                    print(f"[DEBUG] Failed to parse datetime from: '{time_str}'")
         
+        print(f"[DEBUG] No reminder patterns matched for: '{text_lower}'")
         return None
     
     @staticmethod
