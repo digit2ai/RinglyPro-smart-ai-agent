@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, Any, List
 import pytz
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -13,7 +13,14 @@ _email_service = None
 def _send_sms_reminder_job(phone_number: str, message: str, reminder_id: str):
     """Standalone function for SMS reminder job (avoids serialization issues)"""
     try:
+        print(f"[REMINDER] 🔥 Executing SMS job {reminder_id} at {datetime.now()}")
+        print(f"[REMINDER] Global _twilio_service status: {_twilio_service is not None}")
         print(f"[REMINDER] Sending SMS reminder {reminder_id} to {phone_number}")
+        
+        if _twilio_service is None:
+            print(f"[REMINDER] ❌ CRITICAL: _twilio_service is None when job executed!")
+            return
+            
         result = _twilio_service.send_sms(phone_number, message)
         
         if result.get('success'):
@@ -27,7 +34,14 @@ def _send_sms_reminder_job(phone_number: str, message: str, reminder_id: str):
 def _send_email_reminder_job(email_address: str, subject: str, message: str, reminder_id: str):
     """Standalone function for email reminder job (avoids serialization issues)"""
     try:
+        print(f"[REMINDER] 🔥 Executing Email job {reminder_id} at {datetime.now()}")
+        print(f"[REMINDER] Global _email_service status: {_email_service is not None}")
         print(f"[REMINDER] Sending email reminder {reminder_id} to {email_address}")
+        
+        if _email_service is None:
+            print(f"[REMINDER] ❌ CRITICAL: _email_service is None when job executed!")
+            return
+            
         result = _email_service.send_email(email_address, subject, message)
         
         if result.get('success'):
@@ -37,6 +51,13 @@ def _send_email_reminder_job(email_address: str, subject: str, message: str, rem
             
     except Exception as e:
         print(f"[REMINDER] ❌ Exception sending email reminder {reminder_id}: {str(e)}")
+
+def _test_scheduler_job():
+    """Test function to verify scheduler is working"""
+    print(f"🔥🔥🔥 TEST JOB EXECUTED SUCCESSFULLY at {datetime.now()}")
+    print(f"🔥🔥🔥 Scheduler is working! Global services status:")
+    print(f"🔥🔥🔥 _twilio_service: {_twilio_service is not None}")
+    print(f"🔥🔥🔥 _email_service: {_email_service is not None}")
 
 class ReminderService:
     """Service for scheduling and managing reminders"""
@@ -73,6 +94,58 @@ class ReminderService:
         self.scheduler.start()
         print("✅ Reminder scheduler started")
     
+    def test_scheduler(self, delay_seconds: int = 10) -> Dict[str, Any]:
+        """Test if the scheduler is working by scheduling a simple test job"""
+        try:
+            run_time = datetime.now(Config.SCHEDULER_TIMEZONE) + timedelta(seconds=delay_seconds)
+            job_id = f"test_job_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            
+            print(f"🧪 Scheduling test job {job_id} to run in {delay_seconds} seconds at {run_time}")
+            
+            self.scheduler.add_job(
+                func=_test_scheduler_job,
+                trigger="date",
+                run_date=run_time,
+                id=job_id,
+                name="Scheduler Test Job"
+            )
+            
+            return {
+                "success": True,
+                "job_id": job_id,
+                "test_time": run_time.isoformat(),
+                "message": f"Test job scheduled for {run_time.strftime('%Y-%m-%d at %I:%M:%S %p %Z')}. Watch logs for execution."
+            }
+            
+        except Exception as e:
+            return {"success": False, "error": f"Failed to schedule test job: {str(e)}"}
+    
+    def test_scheduler(self, delay_seconds: int = 10) -> Dict[str, Any]:
+        """Test if the scheduler is working by scheduling a simple test job"""
+        try:
+            run_time = datetime.now(Config.SCHEDULER_TIMEZONE) + timedelta(seconds=delay_seconds)
+            job_id = f"test_job_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            
+            print(f"🧪 Scheduling test job {job_id} to run in {delay_seconds} seconds at {run_time}")
+            
+            self.scheduler.add_job(
+                func=_test_scheduler_job,
+                trigger="date",
+                run_date=run_time,
+                id=job_id,
+                name="Scheduler Test Job"
+            )
+            
+            return {
+                "success": True,
+                "job_id": job_id,
+                "test_time": run_time.isoformat(),
+                "message": f"Test job scheduled for {run_time.strftime('%Y-%m-%d at %I:%M:%S %p %Z')}. Watch logs for execution."
+            }
+            
+        except Exception as e:
+            return {"success": False, "error": f"Failed to schedule test job: {str(e)}"}
+
     def schedule_sms_reminder(self, phone_number: str, message: str, reminder_time: datetime) -> Dict[str, Any]:
         """Schedule an SMS reminder"""
         try:
@@ -83,6 +156,8 @@ class ReminderService:
             
             # Create unique job ID
             job_id = f"sms_reminder_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{hash(phone_number + message) % 10000}"
+            
+            print(f"📱 Scheduling SMS job {job_id} for {reminder_time}")
             
             # Schedule the reminder using standalone function
             self.scheduler.add_job(
@@ -115,6 +190,8 @@ class ReminderService:
             # Create unique job ID
             job_id = f"email_reminder_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{hash(email_address + message) % 10000}"
             
+            print(f"📧 Scheduling Email job {job_id} for {reminder_time}")
+            
             # Schedule the reminder using standalone function
             self.scheduler.add_job(
                 func=_send_email_reminder_job,
@@ -142,13 +219,14 @@ class ReminderService:
             reminders = []
             
             for job in jobs:
-                if job.id.startswith('sms_reminder_') or job.id.startswith('email_reminder_'):
+                if job.id.startswith('sms_reminder_') or job.id.startswith('email_reminder_') or job.id.startswith('test_job_'):
+                    job_type = "test" if job.id.startswith('test_job_') else ("sms" if job.id.startswith('sms_reminder_') else "email")
                     reminders.append({
                         "id": job.id,
                         "name": job.name,
                         "next_run_time": job.next_run_time.isoformat() if job.next_run_time else None,
                         "trigger": str(job.trigger),
-                        "type": "sms" if job.id.startswith('sms_reminder_') else "email"
+                        "type": job_type
                     })
             
             return {
