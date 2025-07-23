@@ -58,15 +58,16 @@ class ReminderService:
     
     def _setup_scheduler(self):
         """Initialize the background scheduler"""
+        # Use memory storage instead of SQLite for Render compatibility
         jobstores = {
-            'default': SQLAlchemyJobStore(url=Config.SCHEDULER_JOBSTORE_URL)
+            'default': 'memory'  # Changed from SQLAlchemyJobStore to memory
         }
         executors = {
             'default': ThreadPoolExecutor(20),
         }
         job_defaults = {
-            'coalesce': True,  # Changed to True - combine multiple pending executions
-            'max_instances': 1  # Changed to 1 - only one instance per job
+            'coalesce': True,  # Combine multiple pending executions
+            'max_instances': 1  # Only one instance per job
         }
         
         self.scheduler = BackgroundScheduler(
@@ -80,7 +81,7 @@ class ReminderService:
         self.scheduler.add_listener(self._job_listener, events.EVENT_JOB_ERROR | events.EVENT_JOB_EXECUTED)
         
         self.scheduler.start()
-        print("✅ Reminder scheduler started with persistent storage")
+        print("✅ Reminder scheduler started with memory storage")
     
     def schedule_sms_reminder(self, phone_number: str, message: str, reminder_time: datetime) -> Dict[str, Any]:
         """Schedule an SMS reminder"""
