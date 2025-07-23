@@ -2,6 +2,7 @@ import concurrent.futures
 from datetime import datetime
 from typing import Dict, Any, List
 from utils.formatters import is_phone_number, is_email_address, format_phone_number
+from config import Config
 
 class ActionHandlers:
     """Handle various actions dispatched by the application"""
@@ -11,6 +12,21 @@ class ActionHandlers:
         self.email_service = email_service
         self.claude_service = claude_service
         self.reminder_service = reminder_service
+    
+    def _resolve_recipient(self, recipient: str, message_type: str = "sms") -> str:
+        """Resolve 'me' references to actual contact information"""
+        if recipient.lower() in ['me', 'myself', 'my phone', 'my email']:
+            if message_type.lower() in ['sms', 'text', 'phone']:
+                resolved = Config.DEFAULT_PHONE_NUMBER
+                if not resolved:
+                    raise ValueError("DEFAULT_PHONE_NUMBER not configured. Please set this environment variable.")
+                return resolved
+            elif message_type.lower() in ['email', 'mail']:
+                resolved = Config.DEFAULT_EMAIL
+                if not resolved:
+                    raise ValueError("DEFAULT_EMAIL not configured. Please set this environment variable.")
+                return resolved
+        return recipient
     
     def handle_create_task(self, data: Dict[str, Any]) -> str:
         """Handle task creation"""
@@ -27,6 +43,12 @@ class ActionHandlers:
         recipient = data.get("recipient", "")
         message = data.get("message", "")
         original_message = data.get("original_message", message)
+        
+        # Resolve 'me' references
+        try:
+            recipient = self._resolve_recipient(recipient, "sms")
+        except ValueError as e:
+            return f"❌ {str(e)}"
         
         print(f"[ACTION] Sending message to {recipient}")
         
@@ -51,6 +73,12 @@ class ActionHandlers:
         message = data.get("message", "")
         subject = data.get("subject", "")
         original_message = data.get("original_message", message)
+        
+        # Resolve 'me' references
+        try:
+            recipient = self._resolve_recipient(recipient, "email")
+        except ValueError as e:
+            return f"❌ {str(e)}"
         
         print(f"[ACTION] Sending email to {recipient}")
         
@@ -79,7 +107,15 @@ class ActionHandlers:
         if not recipients:
             return "❌ No recipients specified"
         
-        result = self.send_sms_to_multiple(recipients, original_message, enhance=True)
+        # Resolve 'me' references in recipients
+        resolved_recipients = []
+        for recipient in recipients:
+            try:
+                resolved_recipients.append(self._resolve_recipient(recipient, "sms"))
+            except ValueError as e:
+                return f"❌ {str(e)}"
+        
+        result = self.send_sms_to_multiple(resolved_recipients, original_message, enhance=True)
         return self._format_multi_response(result, "message")
     
     def handle_send_email_multi(self, data: Dict[str, Any]) -> str:
@@ -92,7 +128,15 @@ class ActionHandlers:
         if not recipients:
             return "❌ No recipients specified"
         
-        result = self.send_emails_to_multiple(recipients, subject, original_message, enhance=True)
+        # Resolve 'me' references in recipients
+        resolved_recipients = []
+        for recipient in recipients:
+            try:
+                resolved_recipients.append(self._resolve_recipient(recipient, "email"))
+            except ValueError as e:
+                return f"❌ {str(e)}"
+        
+        result = self.send_emails_to_multiple(resolved_recipients, subject, original_message, enhance=True)
         return self._format_multi_response(result, "email")
     
     def handle_schedule_sms_reminder(self, data: Dict[str, Any]) -> str:
@@ -100,6 +144,16 @@ class ActionHandlers:
         recipient = data.get("recipient", "")
         message = data.get("message", "")
         reminder_time_str = data.get("reminder_time", "")
+        
+        # ADD DEBUG LINES:
+        print(f"[DEBUG] Original recipient: '{recipient}', DEFAULT_PHONE_NUMBER: '{Config.DEFAULT_PHONE_NUMBER}'")
+        
+        # Resolve 'me' references
+        try:
+            recipient = self._resolve_recipient(recipient, "sms")
+            print(f"[DEBUG] Resolved recipient: '{recipient}'")
+        except ValueError as e:
+            return f"❌ {str(e)}"
         
         if not recipient:
             return "❌ No recipient specified for SMS reminder"
@@ -129,6 +183,12 @@ class ActionHandlers:
         subject = data.get("subject", "")
         reminder_time_str = data.get("reminder_time", "")
         
+        # Resolve 'me' references
+        try:
+            recipient = self._resolve_recipient(recipient, "email")
+        except ValueError as e:
+            return f"❌ {str(e)}"
+        
         if not recipient:
             return "❌ No recipient specified for email reminder"
         
@@ -156,6 +216,7 @@ class ActionHandlers:
         """Handle conversation logging"""
         print("[ACTION] Logging conversation:", data.get("notes"))
         return "Conversation log saved."
+    
     def send_sms_to_multiple(self, recipients: List[str], message: str, enhance: bool = True) -> Dict[str, Any]:
         """Send SMS to multiple recipients with threading"""
         enhanced_message = self.claude_service.enhance_message(message) if enhance else message
@@ -256,9 +317,28 @@ class ActionHandlers:
     
     def send_mixed_messages(self, recipients: List[str], message: str, subject: str = None, enhance: bool = True) -> Dict[str, Any]:
         """Send messages to mixed recipients (SMS for phones, emails for email addresses)"""
-        phone_recipients = [r for r in recipients if is_phone_number(r)]
-        email_recipients = [r for r in recipients if is_email_address(r)]
-        other_recipients = [r for r in recipients if not is_phone_number(r) and not is_email_address(r)]
+        # Resolve 'me' references in recipients
+        resolved_recipients = []
+        for recipient in recipients:
+            try:
+                # Try to resolve as SMS first, then email if it fails
+                try:
+                    resolved = self._resolve_recipient(recipient, "sms")
+                    if is_phone_number(resolved):
+                        resolved_recipients.append(resolved)
+                    else:
+                        resolved = self._resolve_recipient(recipient, "email")
+                        resolved_recipients.append(resolved)
+                except ValueError:
+                    resolved = self._resolve_recipient(recipient, "email")
+                    resolved_recipients.append(resolved)
+            except ValueError:
+                # If both fail, keep original recipient
+                resolved_recipients.append(recipient)
+        
+        phone_recipients = [r for r in resolved_recipients if is_phone_number(r)]
+        email_recipients = [r for r in resolved_recipients if is_email_address(r)]
+        other_recipients = [r for r in resolved_recipients if not is_phone_number(r) and not is_email_address(r)]
         
         enhanced_message = self.claude_service.enhance_message(message) if enhance else message
         
