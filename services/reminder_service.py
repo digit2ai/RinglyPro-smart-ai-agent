@@ -6,12 +6,48 @@ from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.executors.pool import ThreadPoolExecutor
 from config import Config
 
+# Global service references for job callbacks
+_twilio_service = None
+_email_service = None
+
+def _send_sms_reminder_job(phone_number: str, message: str, reminder_id: str):
+    """Standalone function for SMS reminder job (avoids serialization issues)"""
+    try:
+        print(f"[REMINDER] Sending SMS reminder {reminder_id} to {phone_number}")
+        result = _twilio_service.send_sms(phone_number, message)
+        
+        if result.get('success'):
+            print(f"[REMINDER] ✅ SMS reminder {reminder_id} sent successfully")
+        else:
+            print(f"[REMINDER] ❌ Failed to send SMS reminder {reminder_id}: {result.get('error')}")
+            
+    except Exception as e:
+        print(f"[REMINDER] ❌ Exception sending SMS reminder {reminder_id}: {str(e)}")
+
+def _send_email_reminder_job(email_address: str, subject: str, message: str, reminder_id: str):
+    """Standalone function for email reminder job (avoids serialization issues)"""
+    try:
+        print(f"[REMINDER] Sending email reminder {reminder_id} to {email_address}")
+        result = _email_service.send_email(email_address, subject, message)
+        
+        if result.get('success'):
+            print(f"[REMINDER] ✅ Email reminder {reminder_id} sent successfully")
+        else:
+            print(f"[REMINDER] ❌ Failed to send email reminder {reminder_id}: {result.get('error')}")
+            
+    except Exception as e:
+        print(f"[REMINDER] ❌ Exception sending email reminder {reminder_id}: {str(e)}")
+
 class ReminderService:
     """Service for scheduling and managing reminders"""
     
     def __init__(self, twilio_service, email_service):
+        global _twilio_service, _email_service
         self.twilio_service = twilio_service
         self.email_service = email_service
+        # Set global references for job callbacks
+        _twilio_service = twilio_service
+        _email_service = email_service
         self.scheduler = None
         self._setup_scheduler()
     
@@ -48,9 +84,9 @@ class ReminderService:
             # Create unique job ID
             job_id = f"sms_reminder_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{hash(phone_number + message) % 10000}"
             
-            # Schedule the reminder
+            # Schedule the reminder using standalone function
             self.scheduler.add_job(
-                func=self._send_sms_reminder,
+                func=_send_sms_reminder_job,
                 trigger="date",
                 run_date=reminder_time,
                 args=[phone_number, message, job_id],
@@ -79,9 +115,9 @@ class ReminderService:
             # Create unique job ID
             job_id = f"email_reminder_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{hash(email_address + message) % 10000}"
             
-            # Schedule the reminder
+            # Schedule the reminder using standalone function
             self.scheduler.add_job(
-                func=self._send_email_reminder,
+                func=_send_email_reminder_job,
                 trigger="date",
                 run_date=reminder_time,
                 args=[email_address, subject, message, job_id],
@@ -131,34 +167,6 @@ class ReminderService:
             return {"success": True, "message": f"Reminder {reminder_id} cancelled successfully"}
         except Exception as e:
             return {"success": False, "error": f"Failed to cancel reminder: {str(e)}"}
-    
-    def _send_sms_reminder(self, phone_number: str, message: str, reminder_id: str):
-        """Send scheduled SMS reminder (internal callback)"""
-        try:
-            print(f"[REMINDER] Sending SMS reminder {reminder_id} to {phone_number}")
-            result = self.twilio_service.send_sms(phone_number, message)
-            
-            if result.get('success'):
-                print(f"[REMINDER] ✅ SMS reminder {reminder_id} sent successfully")
-            else:
-                print(f"[REMINDER] ❌ Failed to send SMS reminder {reminder_id}: {result.get('error')}")
-                
-        except Exception as e:
-            print(f"[REMINDER] ❌ Exception sending SMS reminder {reminder_id}: {str(e)}")
-    
-    def _send_email_reminder(self, email_address: str, subject: str, message: str, reminder_id: str):
-        """Send scheduled email reminder (internal callback)"""
-        try:
-            print(f"[REMINDER] Sending email reminder {reminder_id} to {email_address}")
-            result = self.email_service.send_email(email_address, subject, message)
-            
-            if result.get('success'):
-                print(f"[REMINDER] ✅ Email reminder {reminder_id} sent successfully")
-            else:
-                print(f"[REMINDER] ❌ Failed to send email reminder {reminder_id}: {result.get('error')}")
-                
-        except Exception as e:
-            print(f"[REMINDER] ❌ Exception sending email reminder {reminder_id}: {str(e)}")
     
     def shutdown(self):
         """Shutdown the scheduler"""
