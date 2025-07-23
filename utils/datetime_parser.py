@@ -8,6 +8,9 @@ from config import Config
 def parse_natural_datetime(text: str) -> Optional[datetime]:
     """Parse natural language datetime expressions"""
     
+    print("🔥🔥🔥 DATETIME PARSER CALLED WITH:", text)
+    print("🔥🔥🔥 FILE: utils/datetime_parser.py")
+    
     # Get current time in the configured timezone
     now = datetime.now(Config.SCHEDULER_TIMEZONE)
     text = text.lower().strip()
