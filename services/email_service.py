@@ -92,6 +92,12 @@ class EmailService:
     
     def __init__(self, smtp_server: str, smtp_port: int, email_address: str, 
                  email_password: str, email_name: str, email_provider: str):
+        print(f"🔍 DEBUG - EmailService init called with:")
+        print(f"   smtp_server: {smtp_server}")
+        print(f"   smtp_port: {smtp_port}")
+        print(f"   email_address: {email_address}")
+        print(f"   email_provider: {email_provider}")
+        
         self.smtp_server = smtp_server
         self.smtp_port = smtp_port
         self.email_address = email_address
@@ -99,7 +105,15 @@ class EmailService:
         self.email_name = email_name
         self.email_provider = email_provider.lower()
         
+        print(f"🔍 DEBUG - Before _configure_provider_defaults:")
+        print(f"   self.smtp_server: {self.smtp_server}")
+        print(f"   self.smtp_port: {self.smtp_port}")
+        
         self._configure_provider_defaults()
+        
+        print(f"🔍 DEBUG - After _configure_provider_defaults:")
+        print(f"   self.smtp_server: {self.smtp_server}")
+        print(f"   self.smtp_port: {self.smtp_port}")
         
         if email_address and email_password:
             print(f"✅ Email client configured for {self.email_provider.title()}")
@@ -129,6 +143,12 @@ class EmailService:
         if not self.email_address or not self.email_password:
             return {"success": False, "error": "Email client not configured"}
         
+        print(f"🔍 DEBUG - Attempting to send email:")
+        print(f"   Using SMTP Server: {self.smtp_server}:{self.smtp_port}")
+        print(f"   From: {self.email_address}")
+        print(f"   To: {to}")
+        print(f"   Provider: {self.email_provider}")
+        
         try:
             msg = MIMEMultipart()
             msg['From'] = f"{self.email_name} <{self.email_address}>"
@@ -138,10 +158,15 @@ class EmailService:
             body_type = "html" if is_html else "plain"
             msg.attach(MIMEText(message, body_type))
             
+            print(f"🔍 DEBUG - Connecting to SMTP server: {self.smtp_server}:{self.smtp_port}")
             with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
+                print(f"🔍 DEBUG - Connected! Starting TLS...")
                 server.starttls()
+                print(f"🔍 DEBUG - TLS started! Attempting login...")
                 server.login(self.email_address, self.email_password)
+                print(f"🔍 DEBUG - Login successful! Sending email...")
                 server.sendmail(self.email_address, to, msg.as_string())
+                print(f"🔍 DEBUG - Email sent successfully!")
             
             return {
                 "success": True,
@@ -154,6 +179,7 @@ class EmailService:
             }
             
         except Exception as e:
+            print(f"🔍 DEBUG - Email send failed with error: {str(e)}")
             return {"success": False, "error": f"Failed to send email: {str(e)}"}
     
     def test_connection(self) -> Dict[str, Any]:
@@ -1194,6 +1220,20 @@ if __name__ == '__main__':
     print("🚀 Starting Enhanced Wake Word SMS & Email App")
     print(f"🎙️ Primary Wake Word: '{CONFIG['wake_word_primary']}'")
     print(f"📱 Twilio: {'✅ Ready' if twilio_client.client else '❌ Not configured'}")
+    
+    # DEBUG: Print all email environment variables
+    print("🔍 DEBUG - Environment Variables:")
+    print(f"   EMAIL_PROVIDER env var: {os.getenv('EMAIL_PROVIDER', 'NOT SET')}")
+    print(f"   SMTP_SERVER env var: {os.getenv('SMTP_SERVER', 'NOT SET')}")
+    print(f"   EMAIL_ADDRESS env var: {os.getenv('EMAIL_ADDRESS', 'NOT SET')}")
+    print(f"   SMTP_PORT env var: {os.getenv('SMTP_PORT', 'NOT SET')}")
+    
+    # DEBUG: Print CONFIG values
+    print("🔍 DEBUG - CONFIG Values:")
+    print(f"   config email_provider: {CONFIG['email_provider']}")
+    print(f"   config email_smtp_server: {CONFIG['email_smtp_server']}")
+    print(f"   config email_smtp_port: {CONFIG['email_smtp_port']}")
+    print(f"   config email_address: {CONFIG['email_address']}")
     
     email_status = "✅ Ready" if CONFIG['email_address'] and CONFIG['email_password'] else "⚠️ Not configured"
     print(f"📧 Email ({CONFIG['email_provider'].title()}): {email_status}")
