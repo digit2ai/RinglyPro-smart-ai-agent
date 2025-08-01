@@ -30,10 +30,10 @@ CONFIG = {
     "twilio_account_sid": os.getenv("TWILIO_ACCOUNT_SID", ""),
     "twilio_auth_token": os.getenv("TWILIO_AUTH_TOKEN", ""),
     "twilio_phone_number": os.getenv("TWILIO_PHONE_NUMBER", ""),
-    # Flexible email configuration - supports multiple providers
-    "email_provider": os.getenv("EMAIL_PROVIDER", "gmail").lower(),  # gmail, outlook, yahoo, networksolutions
-    "email_smtp_server": os.getenv("EMAIL_SMTP_SERVER", "smtp.gmail.com"),
-    "email_smtp_port": int(os.getenv("EMAIL_SMTP_PORT", "587")),
+    # Email configuration - supports multiple providers
+    "email_provider": os.getenv("EMAIL_PROVIDER", "networksolutions").lower(),
+    "email_smtp_server": os.getenv("SMTP_SERVER", os.getenv("EMAIL_SMTP_SERVER", "netsol-smtp-oxcs.hostingplatform.com")),
+    "email_smtp_port": int(os.getenv("SMTP_PORT", os.getenv("EMAIL_SMTP_PORT", "587"))),
     "email_address": os.getenv("EMAIL_ADDRESS", ""),
     "email_password": os.getenv("EMAIL_PASSWORD", ""),
     "email_name": os.getenv("EMAIL_NAME", "Voice Command System"),
@@ -110,7 +110,7 @@ class EmailService:
     def _configure_provider_defaults(self):
         """Configure default settings based on email provider"""
         provider_configs = {
-            "networksolutions": {"server": "mail.networksolutions.com", "port": 587},
+            "networksolutions": {"server": "netsol-smtp-oxcs.hostingplatform.com", "port": 587},
             "gmail": {"server": "smtp.gmail.com", "port": 587},
             "outlook": {"server": "smtp-mail.outlook.com", "port": 587},
             "hotmail": {"server": "smtp-mail.outlook.com", "port": 587},
@@ -119,7 +119,8 @@ class EmailService:
         
         if self.email_provider in provider_configs:
             config = provider_configs[self.email_provider]
-            if self.smtp_server in ["smtp.gmail.com", "mail.networksolutions.com"]:  # Default values
+            # Only use defaults if not explicitly configured
+            if self.smtp_server in ["smtp.gmail.com", "netsol-smtp-oxcs.hostingplatform.com"] or not self.smtp_server:
                 self.smtp_server = config["server"]
                 self.smtp_port = config["port"]
     
@@ -1200,6 +1201,8 @@ if __name__ == '__main__':
         print(f"   └─ Provider: {CONFIG['email_provider'].title()}")
         print(f"   └─ Server: {CONFIG['email_smtp_server']}:{CONFIG['email_smtp_port']}")
         print(f"   └─ Account: {CONFIG['email_address']}")
+        print(f"   └─ Display Name: {CONFIG['email_name']}")
+        print(f"   └─ Ready to send FROM {CONFIG['email_address']} TO any recipient!")
     else:
         print(f"   └─ Supported: Gmail, Outlook, Yahoo, Network Solutions")
         print(f"   └─ Configure: EMAIL_PROVIDER, EMAIL_ADDRESS, EMAIL_PASSWORD")
